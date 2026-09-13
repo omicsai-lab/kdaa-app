@@ -168,6 +168,18 @@ Credential setup is the usual failure point rather than the model. Two traps, bo
 - A profile created by `aws login` cannot be used through `compose.llm.yml`: it refreshes its token
   by writing to `~/.aws/login/cache`, and that mount is read-only by design. Export short-lived
   credentials into the environment instead and leave `AWS_PROFILE` unset.
+- Those credentials are short-lived — roughly **15 minutes**. The backend receives them as
+  environment variables, and a container's environment is fixed at creation, so `docker compose
+  restart backend` reuses the expired values. The container must be **recreated**. Use the helper,
+  which does exactly that and touches nothing else:
+
+  ```bash
+  ./scripts/refresh_aws_credentials.sh      # then retry the run
+  ```
+
+  It recreates only the backend (`--force-recreate --no-deps`), leaves postgres, the frontend and
+  both named volumes alone, keeps every `.env` setting, prints no credential, and makes no model
+  call. Run it immediately before a live run; on `ExpiredTokenException`, run it again.
 
 ## CI
 

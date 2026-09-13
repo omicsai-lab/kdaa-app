@@ -369,6 +369,11 @@ eval "$(aws configure export-credentials --profile kdaa --region us-east-1 --for
 docker compose up -d --build
 curl -s http://localhost:8183/api/v1/system | grep -o '"live_llm":[a-z]*'
 
+# These credentials last about 15 minutes, and a container's environment is fixed at creation, so
+# `docker compose restart backend` keeps the expired ones. This helper recreates just the backend
+# with fresh credentials; run it before a live run, and again on ExpiredTokenException.
+./scripts/refresh_aws_credentials.sh
+
 # One live workflow. Refuses to start without the flag; keep the bounds small.
 .venv-browser/bin/python scripts/browser_live_run.py --base http://127.0.0.1:5183 --allow-paid-call
 ```
