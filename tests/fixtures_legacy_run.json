@@ -1,0 +1,75 @@
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "workspace_id": "22222222-2222-4222-8222-222222222222",
+  "status": "succeeded",
+  "inputs": [{
+    "document_id": "33333333-3333-4333-8333-333333333333",
+    "filename": "source.txt",
+    "raw_sha256": "015935866f7ef4fb3326cd03d75b6527bbc28a7d851f62f8a9fcf00bc927d441",
+    "text_sha256": "015935866f7ef4fb3326cd03d75b6527bbc28a7d851f62f8a9fcf00bc927d441",
+    "normalization_version": "unicode-nfc-lines-v1",
+    "parser_version": "document-extraction-v1:utf8"
+  }],
+  "config": {"mode": "reference", "goal": "", "focal_unit": "My workspace",
+             "engine_version": "reference-rules-v0.1", "app_version": "0.1.0",
+             "max_evidence_per_source_type": 3, "rules": []},
+  "config_sha256": "4e34a782e8e62ae08bc2093cd00bf19479d0d649b99f55ac885650bd460f1890",
+  "engine_version": "reference-rules-v0.1",
+  "schema_version": "1.0",
+  "created_at": "2026-09-12T02:58:25.437849Z",
+  "updated_at": "2026-09-12T02:58:25.440397Z",
+  "result": {
+    "schema_version": "1.0",
+    "engine_version": "reference-rules-v0.1",
+    "workspace_id": "22222222-2222-4222-8222-222222222222",
+    "run_id": "11111111-1111-4111-8111-111111111111",
+    "config_sha256": "4e34a782e8e62ae08bc2093cd00bf19479d0d649b99f55ac885650bd460f1890",
+    "hypotheses": [{
+      "id": "44444444-4444-4444-8444-444444444444",
+      "workspace_id": "22222222-2222-4222-8222-222222222222",
+      "run_id": "11111111-1111-4111-8111-111111111111",
+      "candidate_type": "software",
+      "title": "Software: A small Python package",
+      "claim": "This source contains explicit software references.",
+      "evidence_ids": ["55555555-5555-4555-8555-555555555555"],
+      "matched_terms": ["package", "script", "software"],
+      "status": "provisional",
+      "ownership": "unresolved"
+    }],
+    "evidence": [{
+      "id": "55555555-5555-4555-8555-555555555555",
+      "workspace_id": "22222222-2222-4222-8222-222222222222",
+      "run_id": "11111111-1111-4111-8111-111111111111",
+      "document_id": "33333333-3333-4333-8333-333333333333",
+      "text_sha256": "015935866f7ef4fb3326cd03d75b6527bbc28a7d851f62f8a9fcf00bc927d441",
+      "start": 24, "end": 40, "quote": "The software pac", "paragraph": 2
+    }],
+    "assessments": [{
+      "candidate_id": "44444444-4444-4444-8444-444444444444",
+      "traceability": "exact_quotes_verified",
+      "distinct_excerpt_count": 1,
+      "goal_relevance": "not_assessed",
+      "overlapping_goal_terms": [],
+      "explanation": "Quotations resolve exactly to normalized source text.",
+      "missing_evidence": ["Ownership and reuse permissions remain unresolved."],
+      "rules_version": "reference-rules-v0.1"
+    }],
+    "amplifications": [{
+      "candidate_id": "44444444-4444-4444-8444-444444444444",
+      "evidence_ids": ["55555555-5555-4555-8555-555555555555"],
+      "proposed_artifact": "A runnable software demonstration",
+      "next_action": "Identify an executable entry point.",
+      "rationale": "A provisional software candidate is linked to exact source excerpts.",
+      "verification_gate": "Confirm ownership, dependencies and licence.",
+      "baseline": "No reuse baseline supplied; compare usefulness with current practice manually.",
+      "status": "proposal_only"
+    }],
+    "input_document_count": 1,
+    "unique_text_count": 1,
+    "duplicate_text_count": 0,
+    "unique_excerpt_count": 1,
+    "notes": ["English literal trigger rules."],
+    "disclaimer": "Local reference PoC, not a reproduction or validation of Paper B. No live LLM calls. Candidates are provisional; lexical evidence is not proof of capability, ownership, independence, or realized value."
+  },
+  "error": null
+}

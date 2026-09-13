@@ -1,0 +1,41 @@
+name: local-acceptance
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  containers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Require the committed npm lockfile
+        run: |
+          if [ ! -f apps/web/package-lock.json ]; then
+            echo "::error::apps/web/package-lock.json is missing; the frontend image builds with npm ci."
+            exit 1
+          fi
+      - name: Validate Compose files
+        run: |
+          docker compose config --quiet
+          docker compose -p kdaa-app-tests -f compose.test.yml config --quiet
+      - name: Core, parsers, API and real PostgreSQL
+        run: docker compose -p kdaa-app-tests -f compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
+      - name: Build and start application
+        run: docker compose up --build -d --wait --wait-timeout 150
+      - name: Real HTTP and restart persistence
+        run: python3 scripts/smoke_api.py --restart
+      - name: Logs on failure
+        if: failure()
+        run: |
+          docker compose logs --tail=150
+          docker compose -p kdaa-app-tests -f compose.test.yml logs --tail=150
+      - name: Stop job-local containers without deleting volumes
+        if: always()
+        run: |
+          docker compose down
+          docker compose -p kdaa-app-tests -f compose.test.yml down

@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+.venv*
+**/__pycache__
+**/*.pyc
+**/*.egg-info
+**/node_modules
+**/dist
+.pytest_cache
+.ruff_cache
+data/runtime
+*.zip
+*.log
+docs/screenshots
+exports

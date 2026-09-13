@@ -1,0 +1,12 @@
+# Optional overlay: share the operator's existing AWS profile with the backend, read-only.
+#
+#   docker compose -f docker-compose.yml -f compose.llm.yml up -d
+#
+# Use this when credentials live in ~/.aws (a profile or SSO cache) rather than in environment
+# variables. Nothing is copied into the image or into Git, the mount is read-only, and the base
+# stack is unchanged for reference-only use. Set AWS_PROFILE in your untracked .env if the profile
+# is not "default".
+services:
+  backend:
+    volumes:
+      - ${HOME}/.aws:/home/kdaa/.aws:ro

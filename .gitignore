@@ -1,0 +1,26 @@
+.env
+.env.*
+!.env.example
+.venv*/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+dist/
+build/
+coverage/
+htmlcov/
+.coverage
+playwright-report/
+test-results/
+.DS_Store
+data/runtime/
+*.log
+# package-lock.json is tracked on purpose: it pins the resolved dependency tree.
+exports/
+docs/screenshots/local/
+# Disposable browser-acceptance upload fixtures (scripts/make_upload_fixtures.py).
+.fixtures/

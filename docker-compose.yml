@@ -1,0 +1,78 @@
+name: kdaa-app
+services:
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_USER: kdaa
+      POSTGRES_PASSWORD: kdaa_local_only
+      POSTGRES_DB: kdaa_app_local
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kdaa -d kdaa_app_local"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    # No database port is exposed to the host or LAN.
+  backend:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+      target: runtime
+    environment:
+      DATABASE_URL: postgresql+psycopg://kdaa:kdaa_local_only@postgres:5432/kdaa_app_local
+      ASSET_DIR: /data/assets
+      DEMO_DIR: /app/data/demo
+      ENGINE_MODE: ${ENGINE_MODE:-reference}
+      LOCAL_ORIGINS: http://localhost:${WEB_PORT:-5183},http://127.0.0.1:${WEB_PORT:-5183},http://localhost:${API_PORT:-8183},http://127.0.0.1:${API_PORT:-8183}
+      # Live inference is off unless explicitly enabled. Without KDAA_LLM_ENABLED=1 plus a region
+      # and model ID, the Bedrock client is never constructed and no paid call can happen.
+      KDAA_LLM_ENABLED: ${KDAA_LLM_ENABLED:-0}
+      BEDROCK_REGION: ${BEDROCK_REGION:-}
+      BEDROCK_MODEL_ID: ${BEDROCK_MODEL_ID:-}
+      LLM_MAX_INPUT_CHARS: ${LLM_MAX_INPUT_CHARS:-120000}
+      LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-4000}
+      LLM_MAX_CANDIDATES: ${LLM_MAX_CANDIDATES:-8}
+      LLM_MAX_MODEL_CALLS: ${LLM_MAX_MODEL_CALLS:-12}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-60}
+      LLM_TOTAL_ATTEMPTS: ${LLM_TOTAL_ATTEMPTS:-3}
+      # Credentials are resolved by the standard AWS chain. Nothing here holds a secret value:
+      # these names are only forwarded if the operator set them in an untracked .env.
+      AWS_PROFILE: ${AWS_PROFILE:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    volumes:
+      - source_assets:/data/assets
+    ports:
+      - "127.0.0.1:${API_PORT:-8183}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
+      interval: 5s
+      timeout: 4s
+      start_period: 15s
+      retries: 20
+    restart: unless-stopped
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "127.0.0.1:${WEB_PORT:-5183}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+volumes:
+  postgres_data:
+  source_assets:

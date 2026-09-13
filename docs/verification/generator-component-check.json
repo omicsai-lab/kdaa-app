@@ -1,0 +1,25 @@
+{
+  "component_check": "passed",
+  "react_renderer": "18.2.0 preinstalled",
+  "transport": "FastAPI TestClient bridge",
+  "metadata": "test-only transactional double",
+  "checks": [
+    "create workspace",
+    "import actual demo sources",
+    "real rules pipeline",
+    "five candidates",
+    "exact evidence inspector",
+    "assessment",
+    "amplification",
+    "provenance",
+    "390px overflow check"
+  ],
+  "not_checked": [
+    "Vite production build",
+    "React 19 package installation",
+    "HTTP proxy",
+    "PostgreSQL",
+    "Compose",
+    "restart persistence"
+  ]
+}

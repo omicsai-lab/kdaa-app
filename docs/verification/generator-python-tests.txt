@@ -1,0 +1,6 @@
+.............................................................sss         [100%]
+=========================== short test summary info ============================
+SKIPPED [1] tests/test_postgres.py:48: No KDAA_TEST_DATABASE_URL: real PostgreSQL execution is pending, not simulated.
+SKIPPED [1] tests/test_postgres.py:54: No KDAA_TEST_DATABASE_URL: real PostgreSQL execution is pending, not simulated.
+SKIPPED [1] tests/test_postgres.py:71: No KDAA_TEST_DATABASE_URL: real PostgreSQL execution is pending, not simulated.
+61 passed, 3 skipped in 5.83s

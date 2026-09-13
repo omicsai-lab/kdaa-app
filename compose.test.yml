@@ -1,0 +1,27 @@
+# Standalone isolated test stack. No interactive app volumes or published ports.
+services:
+  postgres:
+    image: postgres:17-bookworm
+    environment:
+      POSTGRES_USER: kdaa
+      POSTGRES_PASSWORD: kdaa_test_only
+      POSTGRES_DB: kdaa_app_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kdaa -d kdaa_app_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  tests:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+      target: tests
+    environment:
+      KDAA_TEST_DATABASE_URL: postgresql+psycopg://kdaa:kdaa_test_only@postgres:5432/kdaa_app_test
+      KDAA_REQUIRE_POSTGRES_TESTS: "1"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["python", "-m", "pytest", "-q"]
