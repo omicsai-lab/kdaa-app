@@ -66,6 +66,14 @@ def markdown_report(run: Run, events: list[ProvenanceEvent]) -> str:
                 if draft.grounded_evidence_ids:
                     lines.append("Source-supported evidence cited by this draft: "
                                  + ", ".join(f"`{i}`" for i in draft.grounded_evidence_ids))
+                else:
+                    lines.append("This draft cited no verified evidence of its own. Treat all of it "
+                                 "as proposed content; the candidate's evidence is listed below but "
+                                 "the draft did not claim it.")
+                if draft.unresolved_evidence_refs:
+                    lines.extend(["", "Grounding references the model supplied that do not match this "
+                                  "candidate's verified evidence (recorded, not substituted):",
+                                  *[f"- `{safe(x)}`" for x in draft.unresolved_evidence_refs]])
             lines.extend(["", "### Evidence", ""])
             for id in candidate.evidence_ids:
                 e = evidence[id]

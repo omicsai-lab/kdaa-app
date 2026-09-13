@@ -126,6 +126,18 @@ async def main():
         body = await draft.locator(".draft-body").inner_text()
         assert "## Getting started" in body and "Cleans messy field notes" in body, body[:200]
         await expect(draft.get_by_text("Proposed, not supported by the quoted evidence", exact=True)).to_be_visible()
+        # A grounding reference the engine could not resolve is shown, not silently swapped for the
+        # candidate's own evidence.
+        stored_draft = run["result"]["amplifications"][0]["draft"]
+        await expect(draft.get_by_text("Grounding references that did not resolve", exact=True)).to_be_visible()
+        unresolved = draft.locator(".verification li code")
+        assert await unresolved.count() == len(stored_draft["unresolved_evidence_refs"]), \
+            f'{await unresolved.count()} shown, {len(stored_draft["unresolved_evidence_refs"])} stored'
+        grounding_line = await draft.locator("p.subtle").last.inner_text()
+        assert f'Grounded in {len(stored_draft["grounded_evidence_ids"])} verified excerpt(s)' in grounding_line, grounding_line
+        results["draft_grounding_rendered"] = {
+            "grounded": len(stored_draft["grounded_evidence_ids"]),
+            "unresolved": stored_draft["unresolved_evidence_refs"]}
         await expect(page.get_by_text("Human verification gate", exact=True).first).to_be_visible()
         results["draft_rendered"] = {"characters": len(body)}
         if args.screenshots:

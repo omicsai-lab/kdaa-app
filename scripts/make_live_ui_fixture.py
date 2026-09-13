@@ -61,7 +61,9 @@ def main():
                                  "Only one passage mentions the tool"],
                  "missing_evidence": ["Repository location and licence", "Whether it still runs"]}
                 for cid in __import__("re").findall(r"candidate_id: ([0-9a-f-]{36})", request.user)]}),
-            "amplification": json.dumps({
+            # One real grounding reference plus one the engine cannot resolve, so the rendered
+            # fixture covers both the grounded line and the unresolved-reference block.
+            "amplification": lambda request: json.dumps({
                 "title": "Copperfin quick-start README",
                 "proposed_artifact": "README draft",
                 "content": ("# Copperfin\n\n## What it does\nCleans messy field notes before analysis.\n\n"
@@ -71,7 +73,8 @@ def main():
                             "## Before you rely on it\nConfirm the licence and the current owner."),
                 "proposed_elements": ["The three getting-started steps are proposed; the source does not document any commands.",
                                       "The heading structure is proposed."],
-                "grounded_evidence_ids": [],
+                "grounded_evidence_ids": __import__("re").findall(
+                    r"evidence id ([0-9a-f-]{36})", request.user) + ["evidence-2"],
                 "next_action": "Locate the repository and confirm the entry point name.",
                 "verification_gate": "Confirm ownership and licence before sharing this draft."})}
         run = core.start_run(workspace.id, mode="live")

@@ -152,7 +152,11 @@ def test_live_run_produces_candidate_assessment_and_draft(tmp_path):
     assert assessment.semantic.possible_uses == ["Run it on an example dataset"]
     draft = run.result.amplifications[0].draft
     assert draft.content.startswith("# Copperfin")
-    assert draft.proposed_elements and draft.grounded_evidence_ids == candidate.evidence_ids
+    # The fixture cites no grounding ids, so the draft stays visibly ungrounded. It must NOT
+    # inherit the candidate's evidence: that would invent a grounding claim the model never made.
+    assert draft.proposed_elements
+    assert draft.grounded_evidence_ids == [] and draft.unresolved_evidence_refs == []
+    assert draft.grounded_evidence_ids != candidate.evidence_ids
     assert "language-model" in run.result.disclaimer.lower()
 
 def test_live_run_records_provider_usage_and_interactions(tmp_path):
@@ -324,3 +328,90 @@ def test_reference_export_is_unchanged_by_live_support(tmp_path):
     markdown, _ = core.export_run(run.id, "markdown")
     assert "No live LLM calls" in markdown and "Mode: **reference**" in markdown
     assert "Generated draft" not in markdown and "## Model" not in markdown
+
+# ---------------------------------------------------------------------------------------------
+# Amplification grounding references
+#
+# Regression: the engine used to fall back to `list(candidate.evidence_ids)` whenever the model
+# supplied no usable grounding reference. That presented every verified excerpt as support the
+# model had never claimed, and silently discarded invalid references.
+
+def _amplification_citing(refs):
+    """Amplification response whose grounded_evidence_ids is built from the prompt it is given."""
+    def respond(request):
+        ids = re.findall(r"evidence id ([0-9a-f-]{36})", request.user)
+        payload = json.loads(AMPLIFICATION)
+        payload["grounded_evidence_ids"] = refs(ids)
+        return json.dumps(payload)
+    return respond
+
+def _live_with_amplification(tmp_path, amplification, quote=None):
+    core, workspace, document, provider, assets = build(tmp_path, {})
+    provider._responses = {
+        "discovery": discovery([{"document_id": str(document.id), "quote": quote or QUOTE_SOFTWARE}]),
+        "assessment": assess_whatever_was_found, "amplification": amplification}
+    run = core.start_run(workspace.id, mode="live")
+    assert run.status == RunStatus.SUCCEEDED, run.error
+    return core, run
+
+def test_valid_grounding_reference_is_preserved(tmp_path):
+    core, run = _live_with_amplification(tmp_path, _amplification_citing(lambda ids: ids))
+    candidate, draft = run.result.hypotheses[0], run.result.amplifications[0].draft
+    assert draft.grounded_evidence_ids == candidate.evidence_ids
+    assert draft.unresolved_evidence_refs == []
+
+def test_missing_grounding_reference_is_not_replaced_with_candidate_evidence(tmp_path):
+    """The regression itself: no key at all must not become "grounded in everything"."""
+    def respond(request):
+        payload = json.loads(AMPLIFICATION)
+        del payload["grounded_evidence_ids"]
+        return json.dumps(payload)
+    core, run = _live_with_amplification(tmp_path, respond)
+    candidate, draft = run.result.hypotheses[0], run.result.amplifications[0].draft
+    assert candidate.evidence_ids, "the candidate does have evidence; the draft simply did not cite it"
+    assert draft.grounded_evidence_ids == []
+    assert draft.unresolved_evidence_refs == []
+    # Recorded explicitly, so "cites nothing" is auditable rather than inferred from silence.
+    event = [e for e in core.get_provenance(run.id) if e.action == "draft.grounding_unresolved"]
+    assert len(event) == 1
+    assert event[0].details["cites_no_verified_evidence"] is True
+    assert event[0].details["grounded_evidence_count"] == 0
+
+def test_invalid_grounding_references_are_recorded_not_dropped(tmp_path):
+    """A valid id survives; an unknown uuid and an unparseable string are recorded verbatim."""
+    stranger = str(uuid4())
+    core, run = _live_with_amplification(
+        tmp_path, _amplification_citing(lambda ids: [ids[0], stranger, "not-a-uuid", ""]))
+    candidate, draft = run.result.hypotheses[0], run.result.amplifications[0].draft
+    assert draft.grounded_evidence_ids == candidate.evidence_ids
+    assert stranger in draft.unresolved_evidence_refs
+    assert "not-a-uuid" in draft.unresolved_evidence_refs
+    assert len(draft.unresolved_evidence_refs) == 3       # the empty string is recorded too
+    event = [e for e in core.get_provenance(run.id) if e.action == "draft.grounding_unresolved"][0]
+    assert event.details["cites_no_verified_evidence"] is False
+    assert stranger in event.details["unresolved_references"]
+
+def test_grounding_references_are_deduplicated(tmp_path):
+    core, run = _live_with_amplification(tmp_path, _amplification_citing(lambda ids: ids + ids))
+    draft = run.result.amplifications[0].draft
+    assert draft.grounded_evidence_ids == run.result.hypotheses[0].evidence_ids
+    assert draft.unresolved_evidence_refs == []
+
+def test_non_list_grounding_value_is_treated_as_missing(tmp_path):
+    def respond(request):
+        payload = json.loads(AMPLIFICATION)
+        payload["grounded_evidence_ids"] = "evidence-1"
+        return json.dumps(payload)
+    core, run = _live_with_amplification(tmp_path, respond)
+    draft = run.result.amplifications[0].draft
+    assert draft.grounded_evidence_ids == [] and draft.unresolved_evidence_refs == []
+
+def test_ungrounded_draft_is_flagged_in_the_markdown_export(tmp_path):
+    def respond(request):
+        payload = json.loads(AMPLIFICATION)
+        payload["grounded_evidence_ids"] = ["not-a-uuid"]
+        return json.dumps(payload)
+    core, run = _live_with_amplification(tmp_path, respond)
+    report, _ = core.export_run(run.id, "markdown")
+    assert "cited no verified evidence" in report
+    assert "not-a-uuid" in report

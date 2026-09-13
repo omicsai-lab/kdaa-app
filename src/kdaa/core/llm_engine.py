@@ -227,9 +227,23 @@ class LiveEngine:
             if not content:
                 raise LLMError("llm_malformed_response",
                                "The amplification response contained no drafted artifact.")
+            # Grounding references are the model's claim about which verified quotations support
+            # its draft. A missing or unresolvable reference is recorded, never replaced with this
+            # candidate's full evidence list: substituting that would manufacture a grounding
+            # claim the model never made.
             supported = set(candidate.evidence_ids)
-            grounded = [i for i in (_uuid(x) for x in (payload.get("grounded_evidence_ids") or []))
-                        if i in supported]
+            raw_refs = payload.get("grounded_evidence_ids")
+            raw_refs = raw_refs if isinstance(raw_refs, list) else []
+            grounded: list[UUID] = []
+            unresolved: list[str] = []
+            for raw in raw_refs[:40]:
+                parsed = _uuid(raw)
+                if parsed is not None and parsed in supported:
+                    if parsed not in grounded:
+                        grounded.append(parsed)
+                else:
+                    unresolved.append(_str(raw, 120) or f"<{type(raw).__name__}>")
+            unresolved = unresolved[:20]
             actions.append(Amplification(
                 candidate_id=candidate.id, evidence_ids=candidate.evidence_ids,
                 proposed_artifact=_str(payload.get("proposed_artifact"), 300) or title,
@@ -240,7 +254,8 @@ class LiveEngine:
                 verification_gate=_str(payload.get("verification_gate"), 1000) or
                                   "A qualified person must verify accuracy, ownership and permissions before use.",
                 draft=ArtifactDraft(title=title, content=content,
-                                    grounded_evidence_ids=grounded or list(candidate.evidence_ids),
+                                    grounded_evidence_ids=grounded,
+                                    unresolved_evidence_refs=unresolved,
                                     proposed_elements=_text_list(payload.get("proposed_elements"), 20),
                                     generated_by=generated_by)))
         return actions

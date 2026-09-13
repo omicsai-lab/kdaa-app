@@ -15,7 +15,7 @@ export type Assessment = { candidate_id: string; traceability: string; distinct_
   goal_relevance: string; overlapping_goal_terms: string[]; explanation: string; missing_evidence: string[];
   semantic: SemanticAssessment | null };
 export type ArtifactDraft = { schema_version: string; title: string; format: string; content: string;
-  grounded_evidence_ids: string[]; proposed_elements: string[]; provenance_note: string; generated_by: string };
+  grounded_evidence_ids: string[]; unresolved_evidence_refs: string[]; proposed_elements: string[]; provenance_note: string; generated_by: string };
 export type Amplification = { candidate_id: string; evidence_ids: string[]; proposed_artifact: string;
   next_action: string; rationale: string; verification_gate: string; baseline: string; status: string;
   draft: ArtifactDraft | null };

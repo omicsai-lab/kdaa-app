@@ -2,7 +2,7 @@
 
 **Knowledge Discovery, Assessment, and Amplification.** A local, source-linked reference application, with a Web client and a separately callable Python Core.
 
-**Status: local integration complete and verified on a laptop; live Bedrock inference is implemented but not yet exercised against a real model.** 123 tests pass against real PostgreSQL, and the Docker stack, browser workflow, exports and restart persistence were all executed. Live mode has been implemented and tested with provider fixtures only; no Bedrock call has been made from this checkout. See [BUILD_STATUS](docs/BUILD_STATUS.md) for exact passed/failed/blocked checks.
+**Status: local integration complete and verified on a laptop, and one real Bedrock workflow has now been executed from the Web UI.** 130 tests pass against real PostgreSQL (124 before this milestone; 6 were added with the amplification-grounding fix), and the Docker stack, browser workflow, exports and restart persistence were all executed. One live run against `us.amazon.nova-lite-v1:0` in `us-east-1` completed in 12.6 s over 4 model calls and 5,036 tokens, producing 2 candidates, 4 exact verified quotations, 2 drafted artifacts and 0 rejected quotations. GitHub Actions CI **passed for the initial commit `2cd0b6a`** on `origin/main`; the changes described above are still uncommitted and have **not** run in remote CI. See [BUILD_STATUS](docs/BUILD_STATUS.md) for exact passed/failed/blocked checks.
 
 ## What it does
 
@@ -55,13 +55,21 @@ Live mode is **off by default** and makes **billable Bedrock calls** when enable
    BEDROCK_MODEL_ID=<the id from step 1>
    ```
 
-3. Provide credentials through the standard AWS chain — never in code, never in Git. Either set `AWS_PROFILE` in `.env` and share your profile read-only:
+3. Provide credentials through the standard AWS chain — never in code, never in Git. Also set `AWS_REGION`: `BEDROCK_REGION` configures the Bedrock client, but the credential provider resolves its own region, and a profile with no `region` key fails with `NoRegionError` that can only surface as an unrecognised model ID.
+
+   Either set `AWS_PROFILE` in `.env` and share your profile read-only:
 
    ```bash
    docker compose -f docker-compose.yml -f compose.llm.yml up -d --build
    ```
 
-   or put short-lived `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_SESSION_TOKEN` in `.env` and use the ordinary `docker compose up -d --build`.
+   or hand the container short-lived environment credentials and use the ordinary `docker compose up -d --build`. A profile created by `aws login` **must** use this second path: it refreshes its token by writing to `~/.aws/login/cache`, which the read-only mount forbids. Leave `AWS_PROFILE` unset and export them into the shell, so no secret is written to disk:
+
+   ```bash
+   aws login --profile <name> --region <region>      # if the session has expired
+   eval "$(aws configure export-credentials --profile <name> --region <region> --format env)"
+   docker compose up -d --build
+   ```
 
 4. Confirm the server offers it, then pick **Live AI** beside **Run KDAA**:
 
@@ -130,18 +138,22 @@ AWS **infrastructure** (ECS/Fargate, RDS, S3, Cognito, Terraform), authenticatio
 
 ## Version control
 
-This directory is a plain source tree: it intentionally contains no Git history, credentials, remote
-or `.env`. Set up version control yourself when you want it, reviewing each step before you run it:
+This checkout tracks `origin` at <https://github.com/omicsai-lab/kdaa-app.git>, with `HEAD` and
+`origin/main` at `2cd0b6a`. GitHub Actions CI passed for that commit. Credentials and `.env` are
+never tracked.
+
+Git operations are performed manually; nothing in this repository's tooling commits, pushes, merges
+or tags on your behalf. Review each step before you run it:
 
 ```bash
-git init -b main
-git status                 # review what would be tracked before adding anything
+git status
+git diff
 git add -A
 git commit                 # write the message in your editor
+git push origin <your-branch>
 ```
 
-Create a repository under your own account or organization and attach its remote when you are ready
-to push. Do not point this checkout at the other prototype or at a frozen scientific repository.
+Do not point this checkout at the other prototype or at a frozen scientific repository.
 No software license has been selected yet; choose one before any public release.
 
 See [the development guide](docs/DEVELOPMENT.md) for the project boundaries, how to verify a change locally, and the manual Git steps for publishing one.

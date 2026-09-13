@@ -1,13 +1,20 @@
 # Build status ledger
 
-**Snapshot: 2026-09-13 (live-inference milestone). Version: 0.1.0.**
+**Snapshot: 2026-09-13 (live-Bedrock-verified milestone). Version: 0.1.0.**
 
-> This directory is a fresh source tree with no Git history. Entries below that name branches or
-> describe pushes are a factual record of the earlier working repository, which has since been
-> deleted. Test results, versions and counts are unchanged and were produced by the runs described.
-> Version control for this tree is set up manually; see [DEVELOPMENT.md](DEVELOPMENT.md).
+> This checkout is under version control: remote `origin`
+> <https://github.com/omicsai-lab/kdaa-app.git>, with `HEAD` and `origin/main` both at `2cd0b6a`.
+> **GitHub Actions CI passed for that initial commit.** The changes described in the current
+> milestone below are **uncommitted** at the time of writing: they have passed the local checks
+> recorded here and have **not** run in remote CI.
+>
+> Entries from earlier milestones are kept as a historical record of when they were written. Where
+> such an entry describes the remote as absent or a CI run as uninspected, read it as the state at
+> that time, not as the state of this checkout. Test results, versions and counts are unchanged and
+> were produced by the runs described. Git operations are performed manually; see
+> [DEVELOPMENT.md](DEVELOPMENT.md).
 
-**Overall: live Bedrock inference is fully implemented and verified with provider fixtures; a real model call is BLOCKED on this laptop because no AWS credentials exist here. Reference mode and all previously saved runs are unaffected.** One consolidated setup step is at the end of this file.
+**Overall: one real Bedrock workflow has now been executed end to end from the Web UI. The earlier blocker is cleared.** Reference mode and all previously saved runs are unaffected. The live run used `us.amazon.nova-lite-v1:0`, not an Anthropic model: Anthropic models on this account are gated behind a Bedrock use-case form that was not submitted (see "Live Bedrock verification" below).
 
 **Previous milestone (local integration) remains complete and passing.** Docker Compose build, real PostgreSQL integration tests, real browser acceptance over HTTP through nginx, and restart persistence all ran here with the results below. This is **not** an AWS deployment and not a validated assessment instrument.
 
@@ -195,9 +202,9 @@ the client is built, covered by a regression test. Verified: the same configurat
 
 | Check | Status | Why |
 | --- | --- | --- |
-| **Real Bedrock inference** | **Blocked** | No AWS credentials, no AWS CLI and no `~/.aws` on this laptop; `aws` is not installed. Nothing was guessed and no credential was requested. All implementation and every offline check are complete. See the setup step below. |
-| Live token usage and cost figures | **Not run** | Requires a real call. `usage` is recorded from the Converse response when one happens. |
-| GitHub Actions CI | **Not run** | No remote CI run was inspected. The remote repository has since been deleted. |
+| **Real Bedrock inference** | **Cleared 2026-09-13** | Was blocked: no AWS credentials, CLI or `~/.aws` existed at the time. The AWS CLI and a `kdaa` login profile have since been installed, and one real workflow has now run. See "Live Bedrock verification" above. |
+| Live token usage | **Cleared 2026-09-13** | Recorded from the Converse response: 3,099 input / 1,937 output / 5,036 total tokens over 4 calls. Cost figures are still not produced; Bedrock returns usage, not price. |
+| GitHub Actions CI | **Not run at the time** | No remote CI run was inspected during that milestone. Since then, CI has passed for the initial commit `2cd0b6a` on `origin/main`. |
 | AWS infrastructure (ECR/ECS/RDS/S3/Cognito/Terraform) | **Out of scope** | Explicitly excluded from this milestone. |
 | Multi-agent frameworks, vector databases, iOS | **Out of scope** | Not added. |
 
@@ -209,9 +216,164 @@ often a real model produces unfounded quotations, or about latency and cost. The
 renders a fixture bundle and makes no model call. No live integration claim is made anywhere in this
 repository.
 
-## The one setup step you need
+## Live Bedrock verification (2026-09-13)
 
-Live inference needs credentials and model access, which only you can provide. Once you have an AWS
+**One real live workflow was executed from the Web UI.** This is the first entry in this ledger
+describing a real model call; everything above it that says "fixtures only" still says so correctly.
+
+### The run
+
+| Item | Value |
+| --- | --- |
+| Model ID | `us.amazon.nova-lite-v1:0` (US inference profile) |
+| Region | `us-east-1` |
+| Provider | `aws-bedrock-converse` · engine `live-converse-v0.1` · bundle `schema_version` 2.0 |
+| Account / identity | `371510064316`, `arn:aws:iam::371510064316:user/james`, via the existing `kdaa` profile |
+| Input | The three fictional demo Markdown documents, 1,728 characters total |
+| Model calls | **4** (1 discovery + 1 assessment + 2 amplification), budget 5, `LLM_MAX_CANDIDATES=3` |
+| Token usage | **input 3,099 · output 1,937 · total 5,036** |
+| Elapsed | **12.6 s** wall clock; 12,598 ms summed provider latency |
+| Per call | discovery 961/390 (2,153 ms) · assessment 800/376 (2,680 ms) · amplification 673/619 (3,768 ms) · amplification 665/552 (3,997 ms) — input/output tokens, `stopReason` `end_turn` throughout |
+| Run / workspace | run `60ee40c3-e80e-4d7b-9865-af751824138d` in workspace `Live Bedrock acceptance d27f29` |
+| Rejected quotations | **0** |
+| Cost | Not itemised. Bedrock did not return a price and none was inferred. |
+
+### What was verified
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Discovery from a real model | **Passed** | 2 candidates, both `discovery_basis: model_reading`, both `status: provisional` / `ownership: unresolved`: "Copperfin text-cleaning utility" (software) and "Meadow observations dataset" (dataset). |
+| Exact quotations | **Passed** | 4 evidence items, each resolved by `quotes.resolve` against the stored normalized text and re-validated by `validate_evidence`; the inspector shows "Exact quote verified". Offsets came from the backend, never from the model. |
+| Semantic assessment | **Passed** | Every candidate has a `SemanticAssessment` with explanation, possible uses and limitations. Lexical fields stayed `not_assessed` with no overlapping terms — not repurposed, and no score produced. |
+| Drafted artifacts | **Passed** | 2 real Markdown drafts (1,272 and 1,408 characters): "Teaching Exercise: Cleaning Field Notes with Copperfin" and "Meadow Observations Dataset Analysis Exercise" — actual exercises, not instructions for writing one. 7 and 6 proposed elements declared. |
+| Draft grounding | **Passed** | Each draft cited 2 valid evidence ids; `unresolved_evidence_refs` empty for both. The fix below was exercised on real model output, not only on fixtures. |
+| Provenance | **Passed** | 19 events: 4 × `llm.call` (one per model call, each with prompt version, hashes, record key, stop reason, usage and latency), 0 × `evidence.rejected`, 0 × `draft.grounding_unresolved`. |
+| Exports | **Passed** | Markdown 12,190 bytes citing the demo sources and listing each draft's source-supported evidence ids; JSON bundle with 3 sources and `simulated: false`. |
+| Saved-run reload | **Passed** | After reload the run still renders as Live AI mode with its model record intact: "Produced by aws-bedrock-converse · model us.amazon.nova-lite-v1:0 · region us-east-1 · 4 model call(s) · tokens inputTokens=3099, totalTokens=5036, outputTokens=1937". The mode selector had reset to Reference, and the saved run still read as live — a saved run keeps its own labelling. |
+| Prompts and responses off the database | **Passed** | Recorded under `llm/<run-id>/` in the source-asset volume; the bundle keeps only hashes and keys. |
+| Reference mode unaffected | **Passed** | `browser_smoke.py`, `browser_uploads.py`, `browser_stale_state.py` and `smoke_api.py --restart` all still pass, and the 38 pre-existing workspaces survived every rebuild. |
+
+Commands:
+
+```bash
+eval "$(aws configure export-credentials --profile kdaa --region us-east-1 --format env)"
+docker compose up -d --build
+.venv-browser/bin/python scripts/browser_live_run.py --base http://127.0.0.1:5183 --allow-paid-call
+```
+
+### Credential setup: three real failures found and fixed
+
+The model was never the problem. Each of these presented as a misleading error.
+
+1. **The `:ro` mount in `compose.llm.yml` cannot serve an `aws login` profile.** That flow refreshes
+   its token by *writing* to `~/.aws/login/cache`; in-container it failed with
+   `OSError: Read-only file system: /home/kdaa/.aws/login/cache/tmp_*`. The mount stays read-only by
+   design — credentials are not writable by the container. Fixed by documenting the environment
+   credential path for such profiles in `compose.llm.yml`, `.env.example`, `README.md` and
+   `docs/TESTING.md`, and using it here. No secret is written to disk: the credentials are exported
+   into the shell for the single `docker compose up` that consumes them.
+2. **The credential provider needs its own region.** `BEDROCK_REGION` configures the Bedrock client
+   only. Profile `kdaa` has no `region` key, so the login provider raised `NoRegionError`, which the
+   adapter could only surface as "Bedrock does not recognize this model or inference profile ID" —
+   pointing at the model rather than at the credentials. Fixed by documenting `AWS_REGION` alongside
+   `BEDROCK_REGION` in the same four places.
+3. **Anthropic models are gated on this account.** `us.anthropic.claude-haiku-4-5-20251001-v1:0`
+   returned `ResourceNotFoundException: Model use case details have not been submitted for this
+   account. Fill out the Anthropic use case details form before using the model.` A probe of that
+   exact model from the host CLI had succeeded earlier in the session, so the gate is account state,
+   not a wrong ID. `us.amazon.nova-lite-v1:0`, `global.amazon.nova-2-lite-v1:0` and
+   `us.amazon.nova-micro-v1:0` were all verified callable with a single 5-token probe each; Nova Lite
+   was used for the run. **To use an Anthropic model, submit that form in the Bedrock console, then
+   set `BEDROCK_MODEL_ID` and restart** — no code change is needed.
+
+Two runs failed before these were understood (`0c4000cb…` and `d0413a10…`, both in their own
+`Live Bedrock acceptance …` workspaces). They are left in the local database as an honest record;
+each spent one model call and produced no partial result.
+
+### Amplification grounding: bug found and fixed
+
+`LiveEngine._amplify` ended with `grounded_evidence_ids=grounded or list(candidate.evidence_ids)`.
+When the model supplied no usable grounding reference — key absent, not a list, or every id invalid —
+the draft silently inherited **all** of the candidate's verified evidence. That presented every
+excerpt as support the model had never claimed, and invalid references were dropped without trace.
+The `ArtifactDraft` docstring already said "only `grounded_evidence_ids` is backed by verified source
+quotations", so the fallback contradicted the record's own contract.
+
+- Valid ids are preserved in order and de-duplicated; there is no fallback.
+- A reference that does not parse as a UUID, or that is not one of this candidate's verified evidence
+  ids, is recorded verbatim in the new optional `ArtifactDraft.unresolved_evidence_refs` (schema 2.0,
+  default empty, so stored runs parse unchanged).
+- A draft whose references were missing or unresolvable emits a `draft.grounding_unresolved`
+  provenance event carrying the grounded count, the unresolved references and
+  `cites_no_verified_evidence`, so "this draft cites nothing" is auditable rather than inferred.
+- The Markdown export states plainly when a draft cited no verified evidence and lists unresolved
+  references; the Web client shows both, replacing the old unconditional "Grounded in N excerpt(s)".
+
+**Regression coverage: 6 new tests in `tests/test_llm_engine.py`, 5 of which were confirmed failing
+against the pre-fix engine** before the fix was restored — valid-reference preservation, missing key,
+invalid and unparseable references, de-duplication, a non-list value, and the export wording. One
+existing assertion (`draft.grounded_evidence_ids == candidate.evidence_ids`) had encoded the buggy
+behaviour and was corrected. `scripts/make_live_ui_fixture.py` now emits one valid and one
+unresolvable reference, and `browser_live_ui.py` asserts both render.
+
+### Executed on this laptop
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Container suite with real PostgreSQL | **Passed — 130 passed, 0 skipped** | Up from 124. `docker compose -p kdaa-app-tests -f compose.test.yml up --build --abort-on-container-exit --exit-code-from tests`. |
+| Pre-fix failure confirmed | **Passed** | The old fallback was restored temporarily: 5 failed, 125 passed. Fix restored, suite green again. |
+| Frontend typecheck and production build | **Passed** | `npm ci && npm run build` in a `node:24-bookworm-slim` container — strict `tsc --noEmit` + Vite 7.3.1. 31 modules; `index.js` 224.72 kB (70.24 kB gzip), `index.css` 22.08 kB (5.75 kB gzip). |
+| Live-mode UI rendering (fixtures) | **Passed** | `scripts/browser_live_ui.py`, now also asserting the grounded line and the unresolved-reference block. Makes no Bedrock call. |
+| Reference demo path | **Passed** | `scripts/browser_smoke.py` — 5 candidates, exports, refresh, 390px layout. |
+| Upload matrix | **Passed** | `scripts/browser_uploads.py` — PDF/DOCX/duplicate/irrelevant/malformed/exports unchanged. |
+| Stale-asynchronous-state regressions | **Passed** | `scripts/browser_stale_state.py` — both scenarios still green. |
+| HTTP + restart persistence | **Passed** | `smoke_api.py --restart` → 3 documents, 5 candidates, restart persistence confirmed. |
+| Source manifest | **Passed** | `SOURCE_SHA256SUMS.txt` regenerated over 101 files (96 + `scripts/browser_live_run.py` + 4 live-run screenshots); `shasum -a 256 -c` reports 101 OK, 0 failures. |
+| `docs/openapi.json` | **Regenerated** | 15 paths / 18 operations, unchanged in count; `ArtifactDraft` now documents `unresolved_evidence_refs`. |
+
+### Still not run
+
+| Check | Status | Why |
+| --- | --- | --- |
+| Live run against an Anthropic model | **Blocked** | The Bedrock "Anthropic use case details" form has not been submitted for account `371510064316`. Only the account owner can do that; no code change is required afterwards. |
+| Live cost figures | **Not run** | Bedrock returns token usage, not price. Token counts are recorded above; no cost was inferred. |
+| GitHub Actions CI for these changes | **Not run** | CI passed for the initial commit `2cd0b6a` on `origin/main`. The changes in this milestone are still uncommitted, so remote CI has not run against them. The local checks above are what has been verified. |
+| AWS infrastructure (ECR/ECS/RDS/S3/Cognito/Terraform) | **Out of scope** | Not started. |
+
+### Honest limits
+
+One successful run against one small fictional input proves that the wiring works end to end: real
+credentials, a real Converse call, real quotation resolution, real persistence and real export. It
+proves **nothing** about model quality, about how often a real model produces unfounded quotations
+(this run produced none, which is one observation, not a rate), about latency or cost at any other
+size, or about any other model. Nova Lite's output is not evidence about Anthropic models. The
+engine's guarantees — that a quotation is resolved against stored text or rejected, and that a draft
+never inherits grounding it did not claim — hold regardless of model, and are what the test suite
+covers.
+
+## Reproducing the live run
+
+**This step is done** — it is kept because it is how the live run is repeated, not because anything
+is outstanding. The working configuration on this laptop is the `kdaa` login profile plus exported
+environment credentials; see "Credential setup" above for the three traps that are easy to hit.
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+
+# The `kdaa` profile is an `aws login` session. Refresh it when it expires (it expires often):
+aws login --profile kdaa --region us-east-1
+
+# Export short-lived credentials into the shell and start the stack in the same command, so no
+# secret is written to disk. Leave AWS_PROFILE unset in .env when doing this.
+eval "$(aws configure export-credentials --profile kdaa --region us-east-1 --format env)"
+docker compose up -d --build
+curl -s http://localhost:8183/api/v1/system | grep -o '"live_llm":[a-z]*'
+
+# One live workflow. Refuses to start without the flag; keep the bounds small.
+.venv-browser/bin/python scripts/browser_live_run.py --base http://127.0.0.1:5183 --allow-paid-call
+```
+
+The original setup instructions follow, for an account set up from scratch. Once you have an AWS
 identity with `bedrock:InvokeModel` and model access enabled in your chosen region:
 
 ```bash
@@ -262,7 +424,7 @@ No dependency pin was changed. No architecture, Core/API/frontend boundary, prov
 
 | Check | Status | Note |
 | --- | --- | --- |
-| GitHub Actions CI | **Not run** | Workflow source updated, but no remote run was inspected. |
+| GitHub Actions CI | **Not run at the time** | Workflow source was updated, but no remote run was inspected during that milestone. CI has since passed for the initial commit `2cd0b6a`. |
 | Optional host-Python venv suite | **Not run** | Superseded by the container suite, which is the acceptance gate and covers real PostgreSQL. |
 | Image-only/scanned PDF, OCR, encrypted PDF | **Out of scope** | Explicitly unsupported; rejection is covered by the unit suite. |
 | AWS / Bedrock / S3 / Cognito / Terraform / MCP / agents / queues / iOS | **Out of scope** | Not started. Propose separately. |
@@ -286,7 +448,7 @@ docker compose down                   # stop; data survives. Never add -v.
 
 ## Immediate next milestone
 
-Local integration is complete; stop at this boundary. The next step is a separate, explicitly approved decision: either publish this work through the manual Git steps in [DEVELOPMENT.md](DEVELOPMENT.md), or scope the AWS path (ECR/ECS Fargate + RDS/S3/Bedrock) as its own piece of work. Do not begin cloud work inside this milestone.
+Local integration is complete and one real Bedrock workflow has been verified; stop at this boundary. Nothing here is deployed to AWS, and no infrastructure work was started. The next step is a separate, explicitly approved decision: either publish this work through the manual Git steps in [DEVELOPMENT.md](DEVELOPMENT.md), or scope the AWS path (ECR/ECS Fargate + RDS/S3/Bedrock) as its own piece of work. Submitting the Bedrock Anthropic use-case form would allow the same run against an Anthropic model with no code change.
 
 ## Resume log
 
@@ -387,4 +549,53 @@ Blocked / not run: real Bedrock inference (no AWS credentials, CLI or ~/.aws on 
   guessed, no credential requested); live token/cost figures; GitHub Actions; AWS infrastructure.
 Next concrete action: user supplies Bedrock credentials and a model ID via the single setup step
   above, then one live run is executed and this ledger updated with the real result.
+```
+
+```text
+Date / environment: 2026-09-13 (live verification), macOS 15.7.9 arm64, Docker 29.4.3 / Compose 5.1.3,
+  origin https://github.com/omicsai-lab/kdaa-app.git, HEAD and origin/main at 2cd0b6a (CI passed for
+  that commit); all changes below uncommitted; AWS CLI 2.36.44, profile `kdaa` (aws login session)
+Changed files and reason:
+  src/kdaa/core/llm_engine.py    - amplification no longer substitutes the candidate's full evidence
+                                   list for missing/invalid grounding references; valid ids preserved
+                                   and de-duplicated, unresolvable ones recorded
+  src/kdaa/domain.py             - ArtifactDraft.unresolved_evidence_refs (optional, schema 2.0)
+  src/kdaa/core/service.py       - draft.grounding_unresolved provenance event
+  src/kdaa/core/reports.py       - Markdown export states an ungrounded draft and lists bad refs
+  apps/web/src/{App.tsx,types.ts}- render unresolved references; no false "Grounded in N" line
+  tests/test_llm_engine.py       - 6 new grounding tests; corrected one assertion that had encoded
+                                   the bug
+  scripts/browser_live_run.py    - new: one real live workflow through the UI, --allow-paid-call
+  scripts/make_live_ui_fixture.py, scripts/browser_live_ui.py - fixture and UI check now cover a
+                                   valid and an unresolvable grounding reference
+  compose.llm.yml, .env.example, README.md, docs/TESTING.md - the read-only-mount limitation for
+                                   `aws login` profiles, and AWS_REGION for the credential provider
+  docs/openapi.json, SOURCE_SHA256SUMS.txt, docs/BUILD_STATUS.md - regenerated / recorded
+Commands actually executed:
+  aws sts get-caller-identity --profile kdaa --region us-east-1
+  aws bedrock list-inference-profiles --region us-east-1 --profile kdaa
+  aws bedrock-runtime converse ... (5-token probes: haiku-4-5, nova-lite, nova-2-lite, nova-micro)
+  aws login --profile kdaa --region us-east-1          (performed by the maintainer; session had expired)
+  eval "$(aws configure export-credentials --profile kdaa --region us-east-1 --format env)"
+  docker compose up -d --build ; docker compose -f docker-compose.yml -f compose.llm.yml config
+  docker compose -p kdaa-app-tests -f compose.test.yml up --build --abort-on-container-exit --exit-code-from tests
+  docker run --rm -v <web>:/web -w /web node:24-bookworm-slim sh -c 'npm ci && npm run build'
+  .venv-browser/bin/python scripts/browser_live_run.py --allow-paid-call
+  .venv-browser/bin/python scripts/browser_{smoke,uploads,stale_state,live_ui}.py
+  python3 scripts/smoke_api.py --base http://127.0.0.1:8183 --restart
+  shasum -a 256 -c SOURCE_SHA256SUMS.txt
+Passed: 130/130 container tests with real PostgreSQL (0 skipped); one real Bedrock workflow
+  (us.amazon.nova-lite-v1:0, us-east-1, 4 calls, 5,036 tokens, 12.6 s, 2 candidates, 4 exact
+  quotations, 2 drafts, 0 rejections); strict typecheck + Vite build; all four browser scripts;
+  smoke_api --restart; manifest verification (101 files OK).
+Failed: the amplification grounding fallback (found by reading, fixed, 5 of 6 new tests confirmed
+  failing pre-fix). Two live runs failed before the credential setup was understood: an `aws login`
+  profile cannot refresh through the read-only ~/.aws mount, and a profile without a `region` key
+  raises NoRegionError that surfaces as a wrong-model error.
+Blocked / not run: a live run against an Anthropic model (account-level Bedrock use-case form not
+  submitted; Nova Lite used instead); live cost figures (Bedrock returns usage, not price); remote
+  GitHub Actions for these changes (they are uncommitted; CI passed for 2cd0b6a); all AWS
+  infrastructure (out of scope).
+Next concrete action: maintainer reviews the working tree and performs Git operations manually. No
+  commit, push, merge or tag was made.
 ```

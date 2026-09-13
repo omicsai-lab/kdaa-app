@@ -6,6 +6,18 @@
 # variables. Nothing is copied into the image or into Git, the mount is read-only, and the base
 # stack is unchanged for reference-only use. Set AWS_PROFILE in your untracked .env if the profile
 # is not "default".
+#
+# NOT usable with a profile created by `aws login` (one with a `login_session` key). That flow
+# refreshes its token by WRITING to ~/.aws/login/cache, which this read-only mount forbids:
+# botocore fails with "Read-only file system: /home/kdaa/.aws/login/cache/tmp_*". The mount stays
+# read-only by design — credentials are not writable by the container. For an `aws login` profile,
+# hand the container short-lived environment credentials instead and skip this overlay:
+#
+#   eval "$(aws configure export-credentials --profile <name> --region <region> --format env)"
+#   docker compose up -d --build
+#
+# Leave AWS_PROFILE unset in .env when you do that, so the environment credentials are used
+# directly rather than sending the container back to the profile it cannot refresh.
 services:
   backend:
     volumes:

@@ -133,6 +133,10 @@ class ArtifactDraft(Record):
     format: Literal["markdown"] = "markdown"
     content: str = Field(min_length=1, max_length=20000)
     grounded_evidence_ids: list[UUID] = Field(default_factory=list)
+    # A model-supplied grounding reference that is not one of this candidate's verified evidence
+    # ids is recorded here verbatim. It is never silently replaced with the candidate's own
+    # evidence: a draft that cites nothing resolvable stays visibly ungrounded.
+    unresolved_evidence_refs: list[str] = Field(default_factory=list, max_length=20)
     proposed_elements: list[str] = Field(default_factory=list, max_length=20)
     provenance_note: str = DRAFT_NOTE
     generated_by: str = Field(min_length=1, max_length=200)

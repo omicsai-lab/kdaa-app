@@ -771,6 +771,14 @@
             "type": "array",
             "title": "Grounded Evidence Ids"
           },
+          "unresolved_evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Unresolved Evidence Refs"
+          },
           "proposed_elements": {
             "items": {
               "type": "string"

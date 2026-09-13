@@ -258,8 +258,9 @@ class KDAAService:
                              "fallback_used": False}))
             return failed
     def _record_live_stages(self, run: Run, bundle) -> None:
-        """One event per model call and one per rejected quotation, so a stored live result can be
-        audited without reading the recorded bodies."""
+        """One event per model call, one per rejected quotation, and one per draft whose grounding
+        references did not resolve, so a stored live result can be audited without reading the
+        recorded bodies."""
         events = []
         provider = bundle.provider
         for interaction in (provider.interactions if provider else []):
@@ -276,6 +277,18 @@ class KDAAService:
                 details={"stage": rejection.stage, "reason": rejection.reason,
                          "quote_sha256": rejection.quote_sha256, "detail": rejection.detail,
                          "candidate_title": rejection.candidate_title}))
+        # A draft whose grounding references were missing or unresolvable is recorded explicitly,
+        # so "this draft cites no verified evidence" is auditable rather than inferred from silence.
+        for action in bundle.amplifications:
+            draft = action.draft
+            if draft is None or (draft.grounded_evidence_ids and not draft.unresolved_evidence_refs):
+                continue
+            events.append(self._event(run, "draft.grounding_unresolved",
+                output_ids=[action.candidate_id], evidence_ids=list(draft.grounded_evidence_ids),
+                details={"stage": "amplification", "draft_title": draft.title,
+                         "grounded_evidence_count": len(draft.grounded_evidence_ids),
+                         "cites_no_verified_evidence": not draft.grounded_evidence_ids,
+                         "unresolved_references": list(draft.unresolved_evidence_refs)}))
         if not events:
             return
         with self.metadata.transaction() as tx:
